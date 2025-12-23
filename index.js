@@ -5,40 +5,44 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 🔑 أكواد التفعيل (بيتا)
-const VALID_KEYS = [
-  "BETA-1234",
-  "BETA-5678",
-  "HASHIM-ACCESS"
+// 🔑 licenses مع Expiration + Active
+const licenses = [
+  { code: "BETA-1234", active: true, expiresAt: "2026-01-31T23:59:59Z" },
+  { code: "BETA-5678", active: true, expiresAt: "2026-02-28T23:59:59Z" },
+  { code: "HASHIM-ACCESS", active: true, expiresAt: "2026-12-31T23:59:59Z" }
 ];
 
-// 🧪 Endpoint فحص الكود
+// 🧪 Activate endpoint
 app.post("/activate", (req, res) => {
   const { license } = req.body;
+  if (!license) return res.status(400).json({ valid: false, message: "License missing" });
 
-  if (!license) {
-    return res.status(400).json({ valid: false });
-  }
+  const lic = licenses.find(l => l.code === license);
 
-  if (VALID_KEYS.includes(license)) {
-    return res.json({
-      valid: true,
-      message: "Activated successfully"
-    });
-  }
+  if (!lic) return res.json({ valid: false, message: "Invalid license" });
+  if (!lic.active) return res.json({ valid: false, message: "License deactivated" });
 
-  return res.json({
-    valid: false,
-    message: "Invalid license"
-  });
+  const now = new Date();
+  if (new Date(lic.expiresAt) < now) return res.json({ valid: false, message: "License expired" });
+
+  return res.json({ valid: true, message: "Activated successfully" });
 });
 
-// 🟢 Health check (مهم ل Render)
+// 🛑 Deactivate endpoint
+app.post("/deactivate", (req, res) => {
+  const { license } = req.body;
+  const lic = licenses.find(l => l.code === license);
+
+  if (!lic) return res.status(400).json({ message: "License not found" });
+
+  lic.active = false;
+  return res.json({ message: "License deactivated" });
+});
+
+// 🟢 Health check
 app.get("/", (req, res) => {
   res.send("API is running");
 });
 
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log("Server running on port", PORT);
-});
+app.listen(PORT, () => console.log("Server running on port", PORT));
