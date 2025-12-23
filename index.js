@@ -44,5 +44,68 @@ app.get("/", (req, res) => {
   res.send("API is running");
 });
 
+
+// 🖥️ صفحة إدارة الأكواد
+app.get("/admin", (req, res) => {
+  let html = `
+    <html>
+    <head>
+      <title>License Admin</title>
+      <style>
+        body { font-family: Arial; padding: 20px; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+        th { background: #eee; }
+        button { padding: 5px 10px; cursor: pointer; }
+      </style>
+    </head>
+    <body>
+      <h1>License Admin Panel</h1>
+      <table>
+        <tr>
+          <th>License</th>
+          <th>Active</th>
+          <th>Expires At</th>
+          <th>Actions</th>
+        </tr>
+  `;
+
+  licenses.forEach((lic, i) => {
+    html += `
+      <tr>
+        <td>${lic.code}</td>
+        <td>${lic.active ? "✅" : "❌"}</td>
+        <td>${lic.expiresAt}</td>
+        <td>
+          <button onclick="deactivate('${lic.code}')">Deactivate</button>
+        </td>
+      </tr>
+    `;
+  });
+
+  html += `
+      </table>
+      <script>
+        function deactivate(code) {
+          fetch('/deactivate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ license: code })
+          })
+          .then(res => res.json())
+          .then(data => {
+            alert(data.message);
+            location.reload();
+          })
+          .catch(() => alert('Error'));
+        }
+      </script>
+    </body>
+    </html>
+  `;
+
+  res.send(html);
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("Server running on port", PORT));
