@@ -5,14 +5,17 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 🔑 licenses مع Expiration + Active
+// 🔑 licenses
 const licenses = [
-  { code: "BETA-1234", active: true, expiresAt: "2026-01-31T23:59:59Z" },
-  { code: "BETA-5678", active: true, expiresAt: "2026-02-28T23:59:59Z" },
-  { code: "HASHIM-ACCESS", active: true, expiresAt: "2026-12-31T23:59:59Z" }
+  {
+    code: "BETA-1234",
+    active: true,
+    expiresAt: "2026-01-31T23:59:59Z",
+    usedBy: null
+  }
 ];
 
-// 🧪 Activate endpoint
+// 🧪 Activate
 app.post("/activate", (req, res) => {
   const { license, deviceId } = req.body;
   if (!license || !deviceId)
@@ -25,102 +28,148 @@ app.post("/activate", (req, res) => {
   if (new Date(lic.expiresAt) < new Date())
     return res.json({ valid: false, message: "License expired" });
 
-  // 🔐 مستخدم لأول مرة
   if (!lic.usedBy) {
     lic.usedBy = deviceId;
     return res.json({ valid: true, message: "Activated successfully" });
   }
 
-  // ✅ نفس الجهاز
   if (lic.usedBy === deviceId) {
     return res.json({ valid: true, message: "Already activated on this device" });
   }
 
-  // ❌ جهاز ثاني
   return res.json({
     valid: false,
     message: "This license is already used on another device"
   });
 });
 
-// 🛑 Deactivate endpoint
+// 🛑 Deactivate
 app.post("/deactivate", (req, res) => {
   const { license } = req.body;
   const lic = licenses.find(l => l.code === license);
-
-  if (!lic) return res.status(400).json({ message: "License not found" });
+  if (!lic) return res.json({ message: "License not found" });
 
   lic.active = false;
   return res.json({ message: "License deactivated" });
 });
 
-// 🟢 Health check
-app.get("/", (req, res) => {
-  res.send("API is running");
+// ♻️ Reactivate
+app.post("/reactivate", (req, res) => {
+  const { license } = req.body;
+  const lic = licenses.find(l => l.code === license);
+  if (!lic) return res.json({ message: "License not found" });
+
+  lic.active = true;
+  lic.usedBy = null; // تحريره لجهاز جديد
+  return res.json({ message: "License reactivated" });
 });
 
+// ➕ Add license
+app.post("/add-license", (req, res) => {
+  const { code, expiresAt } = req.body;
+  if (!code || !expiresAt)
+    return res.json({ message: "Missing data" });
 
-// 🖥️ صفحة إدارة الأكواد
+  licenses.push({
+    code,
+    active: true,
+    expiresAt,
+    usedBy: null
+  });
+
+  return res.json({ message: "License added" });
+});
+
+// 🖥️ Admin page
 app.get("/admin", (req, res) => {
   let html = `
-    <html>
-    <head>
-      <title>License Admin</title>
-      <style>
-        body { font-family: Arial; padding: 20px; }
-        table { border-collapse: collapse; width: 100%; }
-        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
-        th { background: #eee; }
-        button { padding: 5px 10px; cursor: pointer; }
-      </style>
-    </head>
-    <body>
-      <h1>License Admin Panel</h1>
-      <table>
-        <tr>
-          <th>License</th>
-          <th>Active</th>
-          <th>Expires At</th>
-          <th>Actions</th>
-        </tr>
+  <html>
+  <head>
+    <title>License Admin</title>
+    <style>
+      body { font-family: Arial; padding: 20px; }
+      table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+      th, td { border: 1px solid #ccc; padding: 8px; }
+      th { background: #eee; }
+      button { margin-right: 5px; }
+      input { margin-right: 5px; }
+    </style>
+  </head>
+  <body>
+
+  <h1>License Admin Panel</h1>
+
+  <h3>Add License</h3>
+  <input id="code" placeholder="LICENSE-CODE" />
+  <input id="exp" type="date" />
+  <button onclick="add()">Add</button>
+
+  <table>
+    <tr>
+      <th>License</th>
+      <th>Active</th>
+      <th>Expires</th>
+      <th>Used By (Device ID)</th>
+      <th>Actions</th>
+    </tr>
   `;
 
-  licenses.forEach((lic, i) => {
+  licenses.forEach(l => {
     html += `
-      <tr>
-        <td>${lic.code}</td>
-        <td>${lic.active ? "✅" : "❌"}</td>
-        <td>${lic.expiresAt}</td>
-        <td>
-          <button onclick="deactivate('${lic.code}')">Deactivate</button>
-        </td>
-      </tr>
+    <tr>
+      <td>${l.code}</td>
+      <td>${l.active ? "✅" : "❌"}</td>
+      <td>${l.expiresAt}</td>
+      <td>${l.usedBy || "-"}</td>
+      <td>
+        <button onclick="deactivate('${l.code}')">Deactivate</button>
+        <button onclick="reactivate('${l.code}')">Reactivate</button>
+      </td>
+    </tr>
     `;
   });
 
   html += `
-      </table>
-      <script>
-        function deactivate(code) {
-          fetch('/deactivate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ license: code })
-          })
-          .then(res => res.json())
-          .then(data => {
-            alert(data.message);
-            location.reload();
-          })
-          .catch(() => alert('Error'));
-        }
-      </script>
-    </body>
-    </html>
+  </table>
+
+  <script>
+    function deactivate(code) {
+      fetch('/deactivate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ license: code })
+      }).then(() => location.reload());
+    }
+
+    function reactivate(code) {
+      fetch('/reactivate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ license: code })
+      }).then(() => location.reload());
+    }
+
+    function add() {
+      fetch('/add-license', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: document.getElementById('code').value,
+          expiresAt: document.getElementById('exp').value + "T23:59:59Z"
+        })
+      }).then(() => location.reload());
+    }
+  </script>
+
+  </body>
+  </html>
   `;
 
   res.send(html);
 });
+
+// 🟢 Health
+app.get("/", (req, res) => res.send("API is running"));
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log("Server running on port", PORT));
