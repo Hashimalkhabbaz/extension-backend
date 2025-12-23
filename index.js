@@ -14,18 +14,33 @@ const licenses = [
 
 // 🧪 Activate endpoint
 app.post("/activate", (req, res) => {
-  const { license } = req.body;
-  if (!license) return res.status(400).json({ valid: false, message: "License missing" });
+  const { license, deviceId } = req.body;
+  if (!license || !deviceId)
+    return res.json({ valid: false, message: "Missing data" });
 
   const lic = licenses.find(l => l.code === license);
-
   if (!lic) return res.json({ valid: false, message: "Invalid license" });
   if (!lic.active) return res.json({ valid: false, message: "License deactivated" });
 
-  const now = new Date();
-  if (new Date(lic.expiresAt) < now) return res.json({ valid: false, message: "License expired" });
+  if (new Date(lic.expiresAt) < new Date())
+    return res.json({ valid: false, message: "License expired" });
 
-  return res.json({ valid: true, message: "Activated successfully" });
+  // 🔐 مستخدم لأول مرة
+  if (!lic.usedBy) {
+    lic.usedBy = deviceId;
+    return res.json({ valid: true, message: "Activated successfully" });
+  }
+
+  // ✅ نفس الجهاز
+  if (lic.usedBy === deviceId) {
+    return res.json({ valid: true, message: "Already activated on this device" });
+  }
+
+  // ❌ جهاز ثاني
+  return res.json({
+    valid: false,
+    message: "This license is already used on another device"
+  });
 });
 
 // 🛑 Deactivate endpoint
