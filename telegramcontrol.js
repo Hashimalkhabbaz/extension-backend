@@ -24,7 +24,7 @@ export function initTelegramControl(app) {
       if (text === "what-is-my-chat-id") {
         await axios.post(`${TELEGRAM_API}/sendMessage`, {
           chat_id: chatId,
-          text: `Your chat ID is: ${chatId}`
+          text: `${chatId}`
         });
       }
 
