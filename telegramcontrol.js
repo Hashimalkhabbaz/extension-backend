@@ -21,7 +21,7 @@ export function initTelegramControl(app) {
       const text = update.message.text.trim().toLowerCase();
 
       // Only ONE command for now
-      if (text === "whatismychatid") {
+      if (text === "/whatismychatid") {
         await axios.post(`${TELEGRAM_API}/sendMessage`, {
           chat_id: chatId,
           text: `${chatId}`
